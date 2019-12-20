@@ -1,14 +1,15 @@
 #include <TimerOne.h>
 
-const unsigned int TEETH_PRESENT = 11;
+const unsigned int TEETH_PRESENT = 3;
+// todo bug - broken if zero missing teeth
 const unsigned int TEETH_MISSING = 1;
 const unsigned int TEETH_TOTAL = TEETH_PRESENT + TEETH_MISSING;
 
 const unsigned long ACCELERATION_RATE = 1000L * 100L;  // microseconds between each rpm step
-const unsigned int ACCELERATION_STEP = 1;               // rpm increment step
+const unsigned int ACCELERATION_STEP = 1;              // rpm increment step
 
-const float RPM_MIN = 30.0;
-const float RPM_MAX = 80.0;
+const float RPM_MIN = 60.0;
+const float RPM_MAX = 60.0;
 
 const int OUTPUT_PIN = 13;
 
@@ -24,8 +25,6 @@ void setup() {
   Timer1.attachInterrupt(changeRPMs);
 
   pinMode(OUTPUT_PIN, OUTPUT);
-
-  computeTransitionTimeMs();
 }
 
 void loop() {
