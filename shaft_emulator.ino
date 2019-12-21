@@ -19,8 +19,8 @@ const unsigned long ACCELERATION_RATE = 1000L * 50L;
 const unsigned int ACCELERATION_STEP = 1;
 
 // rpm min and max
-const float RPM_MIN = 200.0;
-const float RPM_MAX = 500.0;
+const float RPM_MIN = 60.0;
+const float RPM_MAX = 60.0;
 
 // used pins
 const int OUTPUT_PIN = 12;
@@ -42,12 +42,16 @@ void setup() {
   Timer1.attachInterrupt(changeRpm);
 
   pinMode(OUTPUT_PIN, OUTPUT);
+
+  Serial.print("Degrees per tooth: ");
+  Serial.println(DEGREES_PER_TOOTH);
+
 }
 
 void loop() {
 
   int position = rotateGearForward();
-  int transitionTimeMs = computeTransitionTimeMs();
+  long transitTime = computeTransitTime();
 
   digitalWrite(LED_PIN, position == 0 ? HIGH : LOW);
   
@@ -56,16 +60,16 @@ void loop() {
     // emulate transit of a present tooth: produce a tooth followed by a gap
     
     digitalWrite(OUTPUT_PIN, HIGH);
-    delay(transitionTimeMs);
+    accurateDelay(transitTime);
     digitalWrite(OUTPUT_PIN, LOW);
-    delay(transitionTimeMs);
+    accurateDelay(transitTime);
 
   } else {
     
     // emulate transit of a missing tooth: produce twice the gap
     
     digitalWrite(OUTPUT_PIN, LOW);
-    delay(transitionTimeMs * 2);
+    accurateDelay(transitTime * 2);
 
   }
 
@@ -75,7 +79,7 @@ void loop() {
  * moves the gear one tooth forward or cycles back at the end of the turn
  */
 int rotateGearForward() {
-  if (currentTooth == TEETH_TOTAL-1) {
+  if (currentTooth == TEETH_TOTAL - 1) {
     return currentTooth = 0;
   } else {
     return ++currentTooth;  
@@ -83,16 +87,31 @@ int rotateGearForward() {
 }
 
 /**
- * calculates how long a tooth or a gap transit lasts in time at the current rpm
+ * calculates a tooth or gap transit duration at the current rpm in microseconds
  */
-float computeTransitionTimeMs() {
+long computeTransitTime() {
 
   float rps = rpm / 60.0;
-  float revTimeMs = 1000.0 / rps;
-  float timeDegMs = revTimeMs / 360.0;
-  float transTimeMs = timeDegMs * DEGREES_PER_TOOTH;
-  return transTimeMs;
+  float revTime = 1000.0 * 1000.0 / rps;
+  float timeDeg = revTime / 360.0;
+  float transTime = timeDeg * DEGREES_PER_TOOTH;
+  return transTime;
 
+}
+
+/**
+ * halts execution for the given microseconds
+ */
+void accurateDelay(long intervalMicroseconds) {
+  unsigned long start = micros();
+  unsigned long milliseconds = intervalMicroseconds / 1000;
+  if (milliseconds > 0) {
+    delay(milliseconds);
+  }
+  unsigned long elapsed = micros() - start;
+  if (elapsed < intervalMicroseconds) {
+    delayMicroseconds(intervalMicroseconds - elapsed);
+  }
 }
 
 /**
