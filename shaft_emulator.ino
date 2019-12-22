@@ -33,14 +33,14 @@ const unsigned int TEETH_TOTAL = TEETH_PRESENT + TEETH_MISSING;
 const float DEGREES_PER_TOOTH = 360 / (TEETH_TOTAL * 2);
 
 // number of revolutions for each rpm rate change
-const unsigned int CHANGE_RATE = 5;
+const unsigned int CHANGE_RATE = 1;
 
 // rpm increment step
-const unsigned int ACCELERATION_STEP = 2;
+const unsigned int ACCELERATION_STEP = 1;
 
 // rpm min and max
-const float RPM_MIN = 60.0;
-const float RPM_MAX = 60.0;
+const float RPM_MIN = 900.0;
+const float RPM_MAX = 1100.0;
 
 // constants used in calculations
 const unsigned long ONE_MINUTE_IN_MICROSECONDS = 60000000;
