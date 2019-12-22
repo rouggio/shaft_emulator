@@ -12,15 +12,15 @@ const unsigned int TEETH_TOTAL = TEETH_PRESENT + TEETH_MISSING;
 // angular degrees per tooth position
 const float DEGREES_PER_TOOTH = 360 / (TEETH_TOTAL * 2);
 
-// microseconds between each rpm step
-const unsigned long ACCELERATION_RATE = 1000L * 50L;
+// number of loops to wait for each rpm rate change
+const unsigned int CHANGE_RATE = 20;
 
 // rpm increment step
-const unsigned int ACCELERATION_STEP = 1;
+const unsigned int ACCELERATION_STEP = 2;
 
 // rpm min and max
-const float RPM_MIN = 60.0;
-const float RPM_MAX = 60.0;
+const float RPM_MIN = 500.0;
+const float RPM_MAX = 1000.0;
 
 // used pins
 const int OUTPUT_PIN = 12;
@@ -35,11 +35,10 @@ volatile bool falling = false;
 // current tooth transitioning
 int currentTooth = -1;
 
+int stepLoop = 0;
+
 void setup() {
   Serial.begin(9600);
-
-  Timer1.initialize(ACCELERATION_RATE); // time in us
-  Timer1.attachInterrupt(changeRpm);
 
   pinMode(OUTPUT_PIN, OUTPUT);
 
@@ -73,6 +72,7 @@ void loop() {
 
   }
 
+  changeRpm();
 }
 
 /**
@@ -95,7 +95,9 @@ long computeTransitTime() {
   float revTime = 1000.0 * 1000.0 / rps;
   float timeDeg = revTime / 360.0;
   float transTime = timeDeg * DEGREES_PER_TOOTH;
-  return transTime;
+  return transTime * .98;
+  //98  - 121
+  //985 - 120
 
 }
 
@@ -119,16 +121,19 @@ void accurateDelay(long intervalMicroseconds) {
  */
 void changeRpm() {
 
-  if (falling) {
+  if (++stepLoop == CHANGE_RATE) {
+    stepLoop = 0;
+    if (falling) {
+      
+      if (rpm > RPM_MIN) rpm -= ACCELERATION_STEP;
+      else falling = false;    
     
-    if (rpm > RPM_MIN) rpm -= ACCELERATION_STEP;
-    else falling = false;    
-  
-  } else {
-  
-    if (rpm < RPM_MAX) rpm += ACCELERATION_STEP;
-    else falling = true;
+    } else {
     
+      if (rpm < RPM_MAX) rpm += ACCELERATION_STEP;
+      else falling = true;
+      
+    }
   }
   
 }
