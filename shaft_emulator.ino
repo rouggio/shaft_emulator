@@ -32,15 +32,20 @@ const unsigned int TEETH_TOTAL = TEETH_PRESENT + TEETH_MISSING;
 // angular degrees per tooth position
 const float DEGREES_PER_TOOTH = 360 / (TEETH_TOTAL * 2);
 
-// number of loops to wait for each rpm rate change
-const unsigned int CHANGE_RATE = 20;
+// number of revolutions for each rpm rate change
+const unsigned int CHANGE_RATE = 5;
 
 // rpm increment step
 const unsigned int ACCELERATION_STEP = 2;
 
 // rpm min and max
-const float RPM_MIN = 500.0;
-const float RPM_MAX = 1000.0;
+const float RPM_MIN = 60.0;
+const float RPM_MAX = 60.0;
+
+// constants used in calculations
+const unsigned long ONE_MINUTE_IN_MICROSECONDS = 60000000;
+
+const float TRANSITION_CONSTANT = ONE_MINUTE_IN_MICROSECONDS * DEGREES_PER_TOOTH / 360.0;
 
 // used pins
 const int OUTPUT_PIN = 12;
@@ -55,7 +60,10 @@ volatile bool falling = false;
 // current tooth transitioning
 int currentTooth = -1;
 
-int stepLoop = 0;
+// loop counter, used to alter the rpm periodically
+int currentLoopIndex = 0;
+
+unsigned long transitTime;
 
 void setup() {
   
@@ -66,57 +74,63 @@ void setup() {
   Serial.print("Degrees per tooth: ");
   Serial.println(DEGREES_PER_TOOTH);
 
+  // initial transit time based on starting rpm
+  transitTime = computeTransitTime();
 }
 
 void loop() {
 
-  int position = rotateGearForward();
-  long transitTime = computeTransitTime();
+  unsigned long start = micros();
 
-  digitalWrite(LED_PIN, position == 0 ? HIGH : LOW);
-  
-  if (position < TEETH_PRESENT) {  
-    
+  // allow rpm to change if needed
+  if (changeRpm()) {
+    transitTime = computeTransitTime();
+  }
+
+  unsigned long precalculationElapsed = micros() - start;
+
+  unsigned long expectedRevolutionDuration = transitTime * 2 * TEETH_TOTAL;
+
+  for (int position = 0; position < TEETH_TOTAL - 1; position++) {
+
+    // flash led to give visual indication of loop
+    digitalWrite(LED_PIN, position == 0 ? HIGH : LOW);
+
     // emulate transit of a present tooth: produce a tooth followed by a gap
-    
     digitalWrite(OUTPUT_PIN, HIGH);
     accurateDelay(transitTime);
     digitalWrite(OUTPUT_PIN, LOW);
     accurateDelay(transitTime);
-
-  } else {
     
-    // emulate transit of a missing tooth: produce twice the gap
-    
-    digitalWrite(OUTPUT_PIN, LOW);
-    accurateDelay(transitTime * 2);
-
   }
 
-  changeRpm();
-}
+  // we are past all teeth, now emulate the transit of the missing teeth: produce twice the gap
+  digitalWrite(OUTPUT_PIN, LOW);
 
-/**
- * moves the gear one tooth forward or cycles back at the end of the turn
- */
-int rotateGearForward() {
-  if (currentTooth == TEETH_TOTAL - 1) {
-    return currentTooth = 0;
-  } else {
-    return ++currentTooth;  
-  }
+  // before delaying for the low gap, calculate any error and compensate
+  unsigned long elapsedBeforeEndGap = micros() - start;
+  accurateDelay(expectedRevolutionDuration - elapsedBeforeEndGap);
+
+/*
+  unsigned long overallElapsed = micros() - start;
+  Serial.print(" precalc: ");
+  Serial.print(precalculationElapsed);
+  Serial.print(" expected: ");
+  Serial.print(expectedRevolutionDuration);
+  Serial.print(" final: ");
+  Serial.print(overallElapsed);
+  Serial.print("\n");
+*/
+
 }
 
 /**
  * calculates a tooth or gap transit duration at the current rpm in microseconds
  */
-long computeTransitTime() {
+float computeTransitTime() {
 
-  float rps = rpm / 60.0;
-  float revTime = 1000.0 * 1000.0 / rps;
-  float timeDeg = revTime / 360.0;
-  float transTime = timeDeg * DEGREES_PER_TOOTH;
-  return transTime;
+  // duration of the transit of a single tooth (present or missing or gap in between) in microseconds
+  return TRANSITION_CONSTANT / rpm;
 
 }
 
@@ -124,35 +138,54 @@ long computeTransitTime() {
  * halts execution for the given microseconds
  */
 void accurateDelay(long intervalMicroseconds) {
-  unsigned long start = micros();
-  unsigned long milliseconds = intervalMicroseconds / 1000;
-  if (milliseconds > 0) {
-    delay(milliseconds);
+
+  unsigned long desiredEnd = micros() + intervalMicroseconds;
+
+  // keep retarding at the smallest microseconds resolution
+  while (micros() < desiredEnd) {
+    delayMicroseconds(4);
   }
-  unsigned long elapsed = micros() - start;
-  if (elapsed < intervalMicroseconds) {
-    delayMicroseconds(intervalMicroseconds - elapsed);
-  }
+  
 }
 
 /**
- * steps up or down the current rpm
+ * steps up or down the current rpm if needed
+ * returns true if rpm actually changed
  */
-void changeRpm() {
+boolean changeRpm() {
 
-  if (++stepLoop == CHANGE_RATE) {
-    stepLoop = 0;
+  if (++currentLoopIndex == CHANGE_RATE) {
+    
+    // this iteration produces a change, either in rpm or direction
+    currentLoopIndex = 0;
+
     if (falling) {
       
-      if (rpm > RPM_MIN) rpm -= ACCELERATION_STEP;
-      else falling = false;    
+      if (rpm > RPM_MIN) {
+        rpm -= ACCELERATION_STEP;
+        return true;
+      } else {
+        falling = false;    
+        return false;
+      }
     
     } else {
     
-      if (rpm < RPM_MAX) rpm += ACCELERATION_STEP;
-      else falling = true;
+      if (rpm < RPM_MAX) {
+        rpm += ACCELERATION_STEP;
+        return true;
+      } else {
+        falling = true;
+        return false;
+      }
       
     }
+    
+  } else {
+
+    // this iteration did not produce a change of rpm
+    return false;
+    
   }
   
 }
