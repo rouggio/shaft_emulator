@@ -1,3 +1,23 @@
+/**
+ * This program will produce hall sensor signals emulating the behaviour of a gear installed on a shaft, as found on thermic engines.
+ * The transit of a tooth in front of the hall sensor is represented by a high value on the OUTPUT_PIN, a low is the absence of a tooth.
+ * 
+ * The gear teeth / gaps layout is specified by the values of TEETH_PRESENT and TEETH_MISSING, assumption is that the teeth are contiguous, followed by the missing teeth.
+ * 
+ * As an example, these parameters:
+ * 
+ *  TEETH_PRESENT = 5
+ *  TEETH_MISSING = 2 
+ *  
+ * will produce this layout: 
+ * 
+ * [ H L H L H L H L H L L L L L ]
+ * [ -1- -2- -3- -4- -5- --- --- ]
+ * 
+ * The program can produce a fluctuating rpm by specifying RPM_MIN, RPM_MAX, CHANGE_RATE and ACCELERATION_STEP accordingly
+ * 
+ * Author: dario.x.busco@gmail.com
+ */
 #include <TimerOne.h>
 
 // number of teeth on wheel
@@ -38,6 +58,7 @@ int currentTooth = -1;
 int stepLoop = 0;
 
 void setup() {
+  
   Serial.begin(9600);
 
   pinMode(OUTPUT_PIN, OUTPUT);
@@ -95,9 +116,7 @@ long computeTransitTime() {
   float revTime = 1000.0 * 1000.0 / rps;
   float timeDeg = revTime / 360.0;
   float transTime = timeDeg * DEGREES_PER_TOOTH;
-  return transTime * .98;
-  //98  - 121
-  //985 - 120
+  return transTime;
 
 }
 
